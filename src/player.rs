@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-// This function spawns the player
 pub fn spawn_player(mut commands: Commands) {
     commands.spawn((
         Sprite {
@@ -13,18 +12,18 @@ pub fn spawn_player(mut commands: Commands) {
     ));
 }
 
-// This handles the movement and borders
 pub fn move_player(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
     mut query: Query<&mut Transform, With<Sprite>>,
 ) {
-    let window = window_query.single();
+    let Ok(window) = window_query.single() else { return; };  // ← fix here
     let window_width = window.width();
     let window_height = window.height();
 
     for mut transform in &mut query {
         let mut direction = Vec3::ZERO;
+
         if keyboard_input.pressed(KeyCode::KeyW) { direction.y += 1.0; }
         if keyboard_input.pressed(KeyCode::KeyS) { direction.y -= 1.0; }
         if keyboard_input.pressed(KeyCode::KeyA) { direction.x -= 1.0; }
@@ -34,7 +33,6 @@ pub fn move_player(
             direction = direction.normalize();
             let x_bound = (window_width / 2.0) - 25.0;
             let y_bound = (window_height / 2.0) - 25.0;
-
             let new_pos = transform.translation + direction * 7.0;
             transform.translation.x = new_pos.x.clamp(-x_bound, x_bound);
             transform.translation.y = new_pos.y.clamp(-y_bound, y_bound);
