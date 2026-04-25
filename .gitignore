@@ -1,0 +1,24 @@
+# --- RUST SPECIFIC ---
+# The heavy folder where all compiled binaries live
+/target/
+
+# Remove this if you want to track exactly which version of dependencies you use
+# (Recommended to keep it for binary apps, but ignore it for libraries)
+# Cargo.lock
+
+# --- OS SPECIFIC ---
+# Linux/macOS hidden files
+.DS_Store
+.directory
+
+# --- IDE SPECIFIC ---
+# VS Code settings
+.vscode/
+
+# Vim swap files
+*.swp
+
+# --- BEVY SPECIFIC ---
+# If you eventually use a local assets folder for testing but don't want to 
+# upload raw large 4K textures or giant sound files yet
+# assets/ignore_me/
