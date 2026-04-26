@@ -1,19 +1,19 @@
 use bevy::prelude::*;
 use crate::world::{TILE_SIZE, MAP_W, MAP_H};
 
-// Half the map size in world units — player cannot cross this boundary
-const MAP_BOUND_X: f32 = (MAP_W as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
-const MAP_BOUND_Y: f32 = (MAP_H as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
-
 const FRAME_W: u32 = 320;
 const FRAME_H: u32 = 663;
 const ANIMATION_SPEED: f32 = 0.15;
-const PLAYER_SPEED: f32 = 200.0; // world units per second (was 7 pixels/frame)
+const PLAYER_SPEED: f32 = 200.0;
 
 const FRAME_FRONT_IDLE: usize = 0;
 const FRAME_FRONT_STEP: usize = 1;
 const FRAME_SIDE: usize = 2;
 const FRAME_BACK: usize = 3;
+
+// Map bounds — player cannot walk past the last inner tile
+const MAP_BOUND_X: f32 = (MAP_W as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
+const MAP_BOUND_Y: f32 = (MAP_H as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnimationState {
@@ -46,7 +46,6 @@ pub fn spawn_player(
         None,
         None,
     );
-
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
     commands.spawn((
@@ -56,10 +55,10 @@ pub fn spawn_player(
                 layout: texture_atlas_layout,
                 index: FRAME_FRONT_IDLE,
             }),
-            custom_size: Some(Vec2::new(120.0, 220.0)), // bigger character
+            custom_size: Some(Vec2::new(60.0, 110.0)), // fits nicely with 40px tiles
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(0.0, 0.0, 1.0), // z=1 renders above tiles
         Player {
             animation_timer: Timer::from_seconds(ANIMATION_SPEED, TimerMode::Repeating),
             animation_state: AnimationState::Idle,
@@ -116,7 +115,7 @@ pub fn move_player(
                 player.animation_state = AnimationState::WalkingSide;
             }
 
-            // Move then clamp to map bounds
+            // Move then clamp to map border
             transform.translation += direction * PLAYER_SPEED * time.delta_secs();
             transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
             transform.translation.y = transform.translation.y.clamp(-MAP_BOUND_Y, MAP_BOUND_Y);
@@ -135,7 +134,6 @@ pub fn animate_player(
 
         player.animation_timer.tick(time.delta());
 
-        // Reset on state change
         if player.animation_state != player.previous_state {
             player.previous_state = player.animation_state;
             player.animation_timer.reset();
