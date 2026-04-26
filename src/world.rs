@@ -30,6 +30,24 @@ pub fn is_solid_tile(tile_id: u8) -> bool {
     matches!(tile_id, WF | WS | TR | RF)
 }
 
+/// Converts a world position to the mapped tile under it, if any.
+pub fn world_tile_at_position(position: Vec3) -> Option<u8> {
+    let tile_x = ((position.x + (MAP_W as f32 * TILE_SIZE) / 2.0) / TILE_SIZE).floor() as i32;
+    let tile_y = (((MAP_H as f32 * TILE_SIZE) / 2.0 - position.y) / TILE_SIZE).floor() as i32;
+
+    if tile_x < 0 || tile_x >= MAP_W as i32 || tile_y < 0 || tile_y >= MAP_H as i32 {
+        return None;
+    }
+
+    Some(MAP[tile_y as usize][tile_x as usize])
+}
+
+/// Returns true when the supplied world position is not inside a solid tile.
+pub fn is_walkable_position(position: Vec3) -> bool {
+    world_tile_at_position(position)
+        .map_or(false, |tile_id| !is_solid_tile(tile_id))
+}
+
 // Get the appropriate layer for a tile
 pub fn get_tile_layer(tile_id: u8) -> f32 {
     match tile_id {

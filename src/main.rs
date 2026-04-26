@@ -3,6 +3,7 @@ use bevy::prelude::*;
 mod world;
 mod player;
 mod camera;
+mod weapon;
 
 fn main() {
     App::new()
@@ -15,6 +16,9 @@ fn main() {
         .add_systems(Update, (
             player::move_player,
             player::animate_player,
+            weapon::fire_gun,
+            weapon::move_bullets,
+            weapon::update_muzzle_flashes,
             camera::camera_follow,
         ))
         .run();

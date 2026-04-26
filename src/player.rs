@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::world::{TILE_SIZE, MAP_W, MAP_H};
+use crate::world::{TILE_SIZE, MAP_W, MAP_H, LAYER_PLAYER, is_walkable_position};
 
 // Measured from the actual sprite PNG (1536x1024 total, 4 frames wide)
 const FRAME_W: u32 = 384;
@@ -12,6 +12,7 @@ const PLAYER_SPEED: f32 = 200.0;
 // Display size preserving 384:1024 aspect ratio
 const SPRITE_W: f32 = TILE_SIZE * 1.5;
 const SPRITE_H: f32 = TILE_SIZE * 4.0;
+const FIRE_COOLDOWN: f32 = 0.25;
 
 // Frame indices — confirmed by pixel analysis of the sprite sheet:
 //   0 = front idle  (faces forward)
@@ -37,10 +38,15 @@ pub enum AnimationState {
 #[derive(Component)]
 pub struct Player {
     animation_timer: Timer,
-    animation_state: AnimationState,
+    pub animation_state: AnimationState,
     previous_state: AnimationState,
-    facing_left: bool,
+    pub facing_left: bool,
     frame_index: usize,
+}
+
+#[derive(Component)]
+pub struct Gun {
+    pub cooldown: Timer,
 }
 
 pub fn spawn_player(
@@ -69,13 +75,16 @@ pub fn spawn_player(
             custom_size: Some(Vec2::new(SPRITE_W, SPRITE_H)),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, crate::world::LAYER_PLAYER),
+        Transform::from_xyz(0.0, 0.0, LAYER_PLAYER),
         Player {
             animation_timer: Timer::from_seconds(ANIMATION_SPEED, TimerMode::Repeating),
             animation_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             facing_left: false,
             frame_index: FRAME_FRONT_IDLE,
+        },
+        Gun {
+            cooldown: Timer::from_seconds(FIRE_COOLDOWN, TimerMode::Once),
         },
     ));
 }
@@ -119,7 +128,7 @@ pub fn move_player(
             let new_position = transform.translation + direction * PLAYER_SPEED * time.delta_secs();
 
             // Check collision before moving
-            if is_position_valid(new_position) {
+            if is_walkable_position(new_position) {
                 transform.translation = new_position;
                 // Apply map bounds
                 transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
@@ -175,22 +184,6 @@ pub fn animate_player(
             _                           => false,
         };
     }
-}
-
-/// Checks if a world position is valid (not colliding with solid tiles)
-fn is_position_valid(position: Vec3) -> bool {
-    // Convert world position to tile coordinates
-    let tile_x = ((position.x + (crate::world::MAP_W as f32 * crate::world::TILE_SIZE) / 2.0) / crate::world::TILE_SIZE) as i32;
-    let tile_y = (((crate::world::MAP_H as f32 * crate::world::TILE_SIZE) / 2.0 - position.y) / crate::world::TILE_SIZE) as i32;
-
-    // Check bounds
-    if tile_x < 0 || tile_x >= crate::world::MAP_W as i32 || tile_y < 0 || tile_y >= crate::world::MAP_H as i32 {
-        return false;
-    }
-
-    // Check if the tile at this position is solid
-    let tile_id = crate::world::MAP[tile_y as usize][tile_x as usize];
-    !crate::world::is_solid_tile(tile_id)
 }
 
 /// Returns the starting frame index for a given animation state.
