@@ -20,8 +20,27 @@ const FL: u8 = 15; // flower
 pub const MAP_W: usize = 40;
 pub const MAP_H: usize = 37;
 
+// Layer definitions for z-indexing
+pub const LAYER_BACKGROUND: f32 = 0.0;
+pub const LAYER_PLAYER: f32 = 1.0;
+pub const LAYER_FOREGROUND: f32 = 2.0;
+
+// Collision data - which tiles block movement
+pub fn is_solid_tile(tile_id: u8) -> bool {
+    matches!(tile_id, WF | WS | TR | RF)
+}
+
+// Get the appropriate layer for a tile
+pub fn get_tile_layer(tile_id: u8) -> f32 {
+    match tile_id {
+        WF | WS | RF | DR | WN => LAYER_FOREGROUND, // Walls, roofs, doors, windows in front
+        TR => LAYER_FOREGROUND, // Trees in front
+        _ => LAYER_BACKGROUND,   // Everything else in background
+    }
+}
+
 #[rustfmt::skip]
-const MAP: [[u8; MAP_W]; MAP_H] = [
+pub const MAP: [[u8; MAP_W]; MAP_H] = [
     // row 0 — top tree border
     [TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR,TR],
     // rows 1-3 — extra grass buffer
@@ -97,6 +116,7 @@ pub fn spawn_world(
             let tile_id = MAP[row][col] as usize;
             let x = origin_x + col as f32 * TILE_SIZE;
             let y = origin_y - row as f32 * TILE_SIZE;
+            let z = get_tile_layer(MAP[row][col]);
 
             commands.spawn((
                 Sprite {
@@ -108,7 +128,7 @@ pub fn spawn_world(
                     custom_size: Some(Vec2::splat(TILE_SIZE)),
                     ..default()
                 },
-                Transform::from_xyz(x, y, 0.0),
+                Transform::from_xyz(x, y, z),
                 TileMap,
             ));
         }

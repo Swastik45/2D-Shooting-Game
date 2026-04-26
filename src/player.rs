@@ -69,7 +69,7 @@ pub fn spawn_player(
             custom_size: Some(Vec2::new(SPRITE_W, SPRITE_H)),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 1.0),
+        Transform::from_xyz(0.0, 0.0, crate::world::LAYER_PLAYER),
         Player {
             animation_timer: Timer::from_seconds(ANIMATION_SPEED, TimerMode::Repeating),
             animation_state: AnimationState::Idle,
@@ -116,9 +116,15 @@ pub fn move_player(
             };
 
             direction = direction.normalize();
-            transform.translation += direction * PLAYER_SPEED * time.delta_secs();
-            transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
-            transform.translation.y = transform.translation.y.clamp(-MAP_BOUND_Y, MAP_BOUND_Y);
+            let new_position = transform.translation + direction * PLAYER_SPEED * time.delta_secs();
+
+            // Check collision before moving
+            if is_position_valid(new_position) {
+                transform.translation = new_position;
+                // Apply map bounds
+                transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
+                transform.translation.y = transform.translation.y.clamp(-MAP_BOUND_Y, MAP_BOUND_Y);
+            }
         } else {
             player.animation_state = AnimationState::Idle;
         }
@@ -169,6 +175,22 @@ pub fn animate_player(
             _                           => false,
         };
     }
+}
+
+/// Checks if a world position is valid (not colliding with solid tiles)
+fn is_position_valid(position: Vec3) -> bool {
+    // Convert world position to tile coordinates
+    let tile_x = ((position.x + (crate::world::MAP_W as f32 * crate::world::TILE_SIZE) / 2.0) / crate::world::TILE_SIZE) as i32;
+    let tile_y = (((crate::world::MAP_H as f32 * crate::world::TILE_SIZE) / 2.0 - position.y) / crate::world::TILE_SIZE) as i32;
+
+    // Check bounds
+    if tile_x < 0 || tile_x >= crate::world::MAP_W as i32 || tile_y < 0 || tile_y >= crate::world::MAP_H as i32 {
+        return false;
+    }
+
+    // Check if the tile at this position is solid
+    let tile_id = crate::world::MAP[tile_y as usize][tile_x as usize];
+    !crate::world::is_solid_tile(tile_id)
 }
 
 /// Returns the starting frame index for a given animation state.
