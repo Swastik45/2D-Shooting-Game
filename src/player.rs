@@ -1,4 +1,9 @@
 use bevy::prelude::*;
+use crate::world::{TILE_SIZE, MAP_W, MAP_H};
+
+// Half the map size in world units — player cannot cross this boundary
+const MAP_BOUND_X: f32 = (MAP_W as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
+const MAP_BOUND_Y: f32 = (MAP_H as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
 
 const FRAME_W: u32 = 320;
 const FRAME_H: u32 = 663;
@@ -111,8 +116,10 @@ pub fn move_player(
                 player.animation_state = AnimationState::WalkingSide;
             }
 
-            // Frame-rate independent movement — no clamping, world is infinite
+            // Move then clamp to map bounds
             transform.translation += direction * PLAYER_SPEED * time.delta_secs();
+            transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
+            transform.translation.y = transform.translation.y.clamp(-MAP_BOUND_Y, MAP_BOUND_Y);
         } else {
             player.animation_state = AnimationState::Idle;
         }
