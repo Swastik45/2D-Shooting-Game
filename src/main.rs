@@ -1,17 +1,16 @@
 use bevy::prelude::*;
-
-// Tell Rust to look for the player.rs file
-mod player; 
-
+ 
+mod player;
+mod camera;
+ 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .add_systems(Startup, (setup, player::spawn_player)) // Call from the module
-        .add_systems(Update, (player::move_player, player::animate_player))           // Call from the module
-    
+        .add_systems(Startup, (camera::spawn_camera, player::spawn_player))
+        .add_systems(Update, (
+            player::move_player,
+            player::animate_player,
+            camera::camera_follow,
+        ))
         .run();
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
 }
