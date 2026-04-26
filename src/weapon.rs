@@ -12,7 +12,7 @@ const MUZZLE_OFFSET: f32 = 20.0;
 #[derive(Component)]
 pub struct Bullet {
     pub direction: Vec3,
-    lifetime: Timer,
+    pub lifetime: Timer,
 }
 
 #[derive(Component)]
