@@ -1,17 +1,22 @@
 use bevy::prelude::*;
 use crate::world::{TILE_SIZE, MAP_W, MAP_H};
 
-const FRAME_W: u32 = 320;
-const FRAME_H: u32 = 663;
+const FRAME_W: u32 = 384;
+const FRAME_H: u32 = 1024;
+const FRAME_COUNT: u32 = 4;
+
 const ANIMATION_SPEED: f32 = 0.15;
 const PLAYER_SPEED: f32 = 200.0;
+
+// Sprite display size — keep the 384:1024 aspect ratio scaled to fit the tile grid
+const SPRITE_W: f32 = TILE_SIZE * 1.5;
+const SPRITE_H: f32 = TILE_SIZE * 4.0;
 
 const FRAME_FRONT_IDLE: usize = 0;
 const FRAME_FRONT_STEP: usize = 1;
 const FRAME_SIDE: usize = 2;
 const FRAME_BACK: usize = 3;
 
-// Map bounds — player cannot walk past the last inner tile
 const MAP_BOUND_X: f32 = (MAP_W as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
 const MAP_BOUND_Y: f32 = (MAP_H as f32 * TILE_SIZE) / 2.0 - TILE_SIZE;
 
@@ -25,11 +30,11 @@ pub enum AnimationState {
 
 #[derive(Component)]
 pub struct Player {
-    pub animation_timer: Timer,
-    pub animation_state: AnimationState,
-    pub previous_state: AnimationState,
-    pub facing_left: bool,
-    pub frame_index: usize,
+    animation_timer: Timer,
+    animation_state: AnimationState,
+    previous_state: AnimationState,
+    facing_left: bool,
+    frame_index: usize,
 }
 
 pub fn spawn_player(
@@ -41,24 +46,24 @@ pub fn spawn_player(
 
     let layout = TextureAtlasLayout::from_grid(
         UVec2::new(FRAME_W, FRAME_H),
-        4,
+        FRAME_COUNT,
         1,
         None,
         None,
     );
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let layout_handle = texture_atlas_layouts.add(layout);
 
     commands.spawn((
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout,
+                layout: layout_handle,
                 index: FRAME_FRONT_IDLE,
             }),
-            custom_size: Some(Vec2::new(60.0, 110.0)), // fits nicely with 40px tiles
+            custom_size: Some(Vec2::new(SPRITE_W, SPRITE_H)),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 1.0), // z=1 renders above tiles
+        Transform::from_xyz(0.0, 0.0, 1.0),
         Player {
             animation_timer: Timer::from_seconds(ANIMATION_SPEED, TimerMode::Repeating),
             animation_state: AnimationState::Idle,
@@ -81,22 +86,10 @@ pub fn move_player(
         let mut moving_left = false;
         let mut moving_right = false;
 
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            direction.y += 1.0;
-            moving_up = true;
-        }
-        if keyboard_input.pressed(KeyCode::KeyS) {
-            direction.y -= 1.0;
-            moving_down = true;
-        }
-        if keyboard_input.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0;
-            moving_left = true;
-        }
-        if keyboard_input.pressed(KeyCode::KeyD) {
-            direction.x += 1.0;
-            moving_right = true;
-        }
+        if keyboard_input.pressed(KeyCode::KeyW) { direction.y += 1.0; moving_up = true; }
+        if keyboard_input.pressed(KeyCode::KeyS) { direction.y -= 1.0; moving_down = true; }
+        if keyboard_input.pressed(KeyCode::KeyA) { direction.x -= 1.0; moving_left = true; }
+        if keyboard_input.pressed(KeyCode::KeyD) { direction.x += 1.0; moving_right = true; }
 
         if moving_left {
             player.facing_left = true;
@@ -107,15 +100,14 @@ pub fn move_player(
         if direction != Vec3::ZERO {
             direction = direction.normalize();
 
-            if moving_up && !moving_down {
-                player.animation_state = AnimationState::WalkingBack;
+            player.animation_state = if moving_up && !moving_down {
+                AnimationState::WalkingBack
             } else if moving_down && !moving_up {
-                player.animation_state = AnimationState::WalkingFront;
-            } else if moving_left || moving_right {
-                player.animation_state = AnimationState::WalkingSide;
-            }
+                AnimationState::WalkingFront
+            } else {
+                AnimationState::WalkingSide
+            };
 
-            // Move then clamp to map border
             transform.translation += direction * PLAYER_SPEED * time.delta_secs();
             transform.translation.x = transform.translation.x.clamp(-MAP_BOUND_X, MAP_BOUND_X);
             transform.translation.y = transform.translation.y.clamp(-MAP_BOUND_Y, MAP_BOUND_Y);
@@ -126,44 +118,36 @@ pub fn move_player(
 }
 
 pub fn animate_player(
-    mut query: Query<(&mut Sprite, &mut Player)>,
     time: Res<Time>,
+    mut query: Query<(&mut Sprite, &mut Player)>,
 ) {
     for (mut sprite, mut player) in &mut query {
-        let Some(atlas) = &mut sprite.texture_atlas else { return; };
+        let Some(atlas) = &mut sprite.texture_atlas else { continue; };
 
         player.animation_timer.tick(time.delta());
 
+        // Reset timer and frame on state change
         if player.animation_state != player.previous_state {
             player.previous_state = player.animation_state;
-            player.animation_timer.reset();
             player.frame_index = match player.animation_state {
-                AnimationState::Idle         => FRAME_FRONT_IDLE,
+                AnimationState::Idle => FRAME_FRONT_IDLE,
                 AnimationState::WalkingFront => FRAME_FRONT_IDLE,
-                AnimationState::WalkingSide  => FRAME_SIDE,
-                AnimationState::WalkingBack  => FRAME_BACK,
+                AnimationState::WalkingSide => FRAME_SIDE,
+                AnimationState::WalkingBack => FRAME_BACK,
             };
+            player.animation_timer.reset();
         }
 
-        match player.animation_state {
-            AnimationState::Idle => {
-                player.frame_index = FRAME_FRONT_IDLE;
-            }
-            AnimationState::WalkingFront => {
-                if player.animation_timer.just_finished() {
-                    player.frame_index = if player.frame_index == FRAME_FRONT_IDLE {
-                        FRAME_FRONT_STEP
-                    } else {
-                        FRAME_FRONT_IDLE
-                    };
+        // Advance animation on tick
+        if player.animation_timer.just_finished() {
+            player.frame_index = match player.animation_state {
+                AnimationState::Idle => FRAME_FRONT_IDLE,
+                AnimationState::WalkingFront => {
+                    if player.frame_index == FRAME_FRONT_IDLE { FRAME_FRONT_STEP } else { FRAME_FRONT_IDLE }
                 }
-            }
-            AnimationState::WalkingSide => {
-                player.frame_index = FRAME_SIDE;
-            }
-            AnimationState::WalkingBack => {
-                player.frame_index = FRAME_BACK;
-            }
+                AnimationState::WalkingSide => FRAME_SIDE,
+                AnimationState::WalkingBack => FRAME_BACK,
+            };
         }
 
         atlas.index = player.frame_index;
