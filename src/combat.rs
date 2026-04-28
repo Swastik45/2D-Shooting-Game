@@ -21,7 +21,7 @@ impl Health {
 
 pub fn check_bullet_collisions(
     mut commands: Commands,
-    bullets: Query<(Entity, &Transform), With<Bullet>>,
+    bullets: Query<(Entity, &Transform), (With<Bullet>, Without<crate::enemy::EnemyBullet>)>,
     mut enemies: Query<(&Transform, &mut Enemy), Without<Bullet>>,
 ) {
     for (bullet_entity, bullet_transform) in &bullets {
@@ -74,6 +74,11 @@ pub fn remove_dead_enemies(
 
             if spawner.count > 0 {
                 spawner.count -= 1;
+            }
+
+            if spawner.count == 0 {
+                spawner.wave_active = true;
+                spawner.cooldown.reset();
             }
         }
     }
