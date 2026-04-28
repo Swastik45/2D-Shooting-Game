@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::player::Gun;
 use crate::world::{TILE_SIZE, MAP_W, is_walkable_position};
+use crate::game_ui::GameEntity;
 
 const ENEMY_SPEED: f32 = 120.0;
 const ENEMY_SIZE: f32 = TILE_SIZE * 1.2;
@@ -66,6 +67,7 @@ pub fn spawn_enemies(
                         cooldown: Timer::from_seconds(1.5, TimerMode::Once),
                     },
                 },
+                GameEntity,
             ));
             spawner.count += 1;
         }
@@ -128,6 +130,7 @@ pub fn enemy_fire_at_player(
                     lifetime: Timer::from_seconds(1.2, TimerMode::Once),
                 },
                 EnemyBullet,
+                GameEntity,
             ));
         }
     }

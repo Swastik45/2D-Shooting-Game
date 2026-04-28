@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::world::{TILE_SIZE, MAP_W, MAP_H, LAYER_PLAYER, is_walkable_position};
 use crate::combat::Health;
+use crate::game_ui::GameEntity;
 
 // Measured from the actual sprite PNG (1536x1024 total, 4 frames wide)
 const FRAME_W: u32 = 384;
@@ -88,6 +89,7 @@ pub fn spawn_player(
             cooldown: Timer::from_seconds(FIRE_COOLDOWN, TimerMode::Once),
         },
         Health::new(100.0),
+        GameEntity, 
     ));
 }
 

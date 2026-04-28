@@ -3,6 +3,10 @@ use crate::combat::Health;
 use crate::player::Player;
 use crate::game_state::{GameScore, GameState};
 
+/// Tag every entity that should be wiped on restart
+#[derive(Component)]
+pub struct GameEntity;
+
 #[derive(Component)]
 pub struct HealthText;
 
@@ -28,6 +32,7 @@ pub fn spawn_ui(mut commands: Commands) {
             ..default()
         },
         HealthText,
+        GameEntity,  // ← tagged
     ));
 
     // Score
@@ -42,6 +47,7 @@ pub fn spawn_ui(mut commands: Commands) {
             ..default()
         },
         ScoreText,
+        GameEntity,  // ← tagged
     ));
 
     // High Score
@@ -56,16 +62,14 @@ pub fn spawn_ui(mut commands: Commands) {
             ..default()
         },
         HighScoreText,
+        GameEntity,  // ← tagged
     ));
 }
 
 pub fn spawn_game_over_ui(mut commands: Commands) {
     commands.spawn((
         Text::new("GAME OVER\nPress Enter to Restart"),
-        TextFont {
-            font_size: 72.0,
-            ..default()
-        },
+        TextFont { font_size: 72.0, ..default() },
         TextColor(Color::srgb(1.0, 0.0, 0.0)),
         Node {
             position_type: PositionType::Absolute,
@@ -74,6 +78,7 @@ pub fn spawn_game_over_ui(mut commands: Commands) {
             ..default()
         },
         GameOverText,
+        GameEntity,  // ← tagged
     ));
 }
 
@@ -118,18 +123,16 @@ pub fn restart_game(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
-    entities: Query<Entity, Without<Camera>>,
+    entities: Query<Entity, With<GameEntity>>,
     mut score: ResMut<GameScore>,
+    mut spawner: ResMut<crate::enemy::EnemySpawner>,  // ← add this
 ) {
-   if keyboard.just_pressed(KeyCode::Enter) {
-        // clear world (keep camera)
+    if keyboard.just_pressed(KeyCode::Enter) {
         for e in &entities {
             commands.entity(e).despawn();
         }
-
-        // reset score
         score.current = 0;
-
+        *spawner = crate::enemy::EnemySpawner::default();  // ← reset count + timer
         next_state.set(GameState::Playing);
     }
 }

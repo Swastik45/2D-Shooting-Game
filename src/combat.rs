@@ -69,6 +69,7 @@ pub fn remove_dead_enemies(
 
             if score.current > score.high_score {
                 score.high_score = score.current;
+                crate::game_state::save_high_score(score.high_score);
             }
 
             if spawner.count > 0 {

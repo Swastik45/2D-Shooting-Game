@@ -1,6 +1,11 @@
 use bevy::prelude::*;
+use directories::ProjectDirs;
+use std::fs;
+use std::path::PathBuf;
 use crate::combat::Health;
 use crate::player::Player;
+
+const HIGH_SCORE_FILE_NAME: &str = "high_score.txt";
 
 #[derive(Resource, Clone)]
 pub struct GameScore {
@@ -12,7 +17,7 @@ impl Default for GameScore {
     fn default() -> Self {
         Self {
             current: 0,
-            high_score: 0,
+            high_score: load_high_score(),
         }
     }
 }
@@ -22,6 +27,41 @@ pub enum GameState {
     #[default]
     Playing,
     GameOver,
+}
+
+fn score_save_path() -> Option<PathBuf> {
+    ProjectDirs::from("com", "example", "my_bevy_game")
+        .map(|dirs| dirs.config_dir().join(HIGH_SCORE_FILE_NAME))
+}
+
+fn load_high_score() -> u32 {
+    let path = match score_save_path() {
+        Some(path) => path,
+        None => return 0,
+    };
+
+    if let Ok(contents) = fs::read_to_string(path) {
+        if let Ok(value) = contents.trim().parse::<u32>() {
+            return value;
+        }
+    }
+
+    0
+}
+
+pub fn save_high_score(high_score: u32) {
+    if let Some(path) = score_save_path() {
+        if let Some(parent) = path.parent() {
+            if let Err(err) = fs::create_dir_all(parent) {
+                warn!("Failed to create high score directory: {err}");
+                return;
+            }
+        }
+
+        if let Err(err) = fs::write(&path, high_score.to_string()) {
+            warn!("Failed to write high score file {path:?}: {err}");
+        }
+    }
 }
 
 pub fn init_game_score(mut commands: Commands) {
