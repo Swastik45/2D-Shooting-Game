@@ -1,7 +1,11 @@
 use bevy::prelude::*;
-use crate::player::Gun;
+use crate::player::{Gun, Weapon};
 use crate::world::{TILE_SIZE, MAP_W, is_walkable_position, LAYER_PLAYER};
 use crate::game_ui::GameEntity;
+
+const ENEMY_FRAME_W: u32 = 384;
+const ENEMY_FRAME_H: u32 = 1024;
+const ENEMY_FRAME_COUNT: u32 = 1; // Single frame for now
 
 const ENEMY_SPEED: f32 = 120.0;
 const ENEMY_SIZE: f32 = TILE_SIZE * 1.2;
@@ -17,6 +21,7 @@ pub struct Enemy {
     pub health: f32,
     pub max_health: f32,
     pub gun: Gun,
+    pub facing_left: bool,
 }
 
 #[derive(Resource)]
@@ -48,6 +53,8 @@ pub fn spawn_enemies(
     player_query: Query<&Transform, With<crate::player::Player>>,
     enemy_query: Query<&Transform, With<Enemy>>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     spawner.cooldown.tick(time.delta());
 
@@ -74,10 +81,27 @@ pub fn spawn_enemies(
             .any(|other| other.translation.distance(spawn_pos) < ENEMY_SEPARATION_DISTANCE);
 
         if is_walkable_position(spawn_pos) && !too_close_to_player && !too_close_to_enemy {
-            commands.spawn((
+            let texture = asset_server.load("enemy_sprite.png");
+
+            let layout = TextureAtlasLayout::from_grid(
+                UVec2::new(ENEMY_FRAME_W, ENEMY_FRAME_H),
+                ENEMY_FRAME_COUNT,
+                1,
+                None,
+                None,
+            );
+            let layout_handle = texture_atlas_layouts.add(layout);
+
+            let weapon_texture = asset_server.load("weapon_sprite.png");
+
+            let enemy_entity = commands.spawn((
                 Sprite {
-                    color: Color::srgb(0.8, 0.2, 0.2),
-                    custom_size: Some(Vec2::splat(ENEMY_SIZE)),
+                    image: texture,
+                    texture_atlas: Some(TextureAtlas {
+                        layout: layout_handle,
+                        index: 0,
+                    }),
+                    custom_size: Some(Vec2::new(ENEMY_SIZE, ENEMY_SIZE * 2.0)), // Adjust size
                     ..default()
                 },
                 Transform::from_xyz(spawn_pos.x, spawn_pos.y, LAYER_PLAYER),
@@ -87,9 +111,24 @@ pub fn spawn_enemies(
                     gun: Gun {
                         cooldown: Timer::from_seconds(1.5, TimerMode::Once),
                     },
+                    facing_left: false,
                 },
                 GameEntity,
-            ));
+            )).id();
+
+            // Spawn weapon as child
+            commands.entity(enemy_entity).with_children(|parent| {
+                parent.spawn((
+                    Sprite {
+                        image: weapon_texture.clone(),
+                        custom_size: Some(Vec2::new(20.0, 10.0)), // Adjust size
+                        ..default()
+                    },
+                    Transform::from_xyz(15.0, 0.0, 0.1), // Offset from enemy
+                    Weapon,
+                ));
+            });
+
             spawner.count += 1;
 
             if spawner.count >= spawner.max_enemies {
@@ -102,7 +141,7 @@ pub fn spawn_enemies(
 pub fn move_enemies_toward_player(
     time: Res<Time>,
     player_query: Query<&Transform, (With<crate::player::Player>, Without<Enemy>)>,
-    mut enemy_query: Query<&mut Transform, With<Enemy>>,
+    mut enemy_query: Query<(&mut Transform, &mut Enemy)>,
 ) {
     let Ok(player_transform) = player_query.single() else {
         return;
@@ -110,16 +149,18 @@ pub fn move_enemies_toward_player(
 
     let enemy_positions: Vec<Vec3> = enemy_query
         .iter()
-        .map(|transform| transform.translation)
+        .map(|(transform, _)| transform.translation)
         .collect();
 
-    for mut enemy_transform in &mut enemy_query {
+    for (mut enemy_transform, mut enemy) in &mut enemy_query {
         let to_player = player_transform.translation - enemy_transform.translation;
         let distance_to_player = to_player.length();
 
         if distance_to_player <= MIN_PLAYER_DISTANCE {
             continue;
         }
+
+        enemy.facing_left = to_player.x < 0.0; // Face towards player
 
         let mut direction = to_player / distance_to_player;
         let mut separation = Vec3::ZERO;

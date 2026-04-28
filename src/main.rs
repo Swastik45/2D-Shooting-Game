@@ -32,6 +32,7 @@ fn main() {
         .add_systems(Update, (
             player::move_player,
             player::animate_player,
+            player::update_weapon_positions,
             weapon::fire_gun,
             weapon::move_bullets,
             weapon::update_muzzle_flashes,

@@ -48,6 +48,9 @@ pub struct Gun {
     pub cooldown: Timer,
 }
 
+#[derive(Component)]
+pub struct Weapon;
+
 pub fn spawn_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -64,7 +67,9 @@ pub fn spawn_player(
     );
     let layout_handle = texture_atlas_layouts.add(layout);
 
-    commands.spawn((
+    let weapon_texture = asset_server.load("weapon_sprite.png");
+
+    let player_entity = commands.spawn((
         Sprite {
             image: texture,
             texture_atlas: Some(TextureAtlas {
@@ -87,7 +92,20 @@ pub fn spawn_player(
         },
         Health::new(100.0),
         GameEntity,
-    ));
+    )).id();
+
+    // Spawn weapon as child
+    commands.entity(player_entity).with_children(|parent| {
+        parent.spawn((
+            Sprite {
+                image: weapon_texture,
+                custom_size: Some(Vec2::new(20.0, 10.0)), // Adjust size
+                ..default()
+            },
+            Transform::from_xyz(15.0, 0.0, 0.1), // Offset from player
+            Weapon,
+        ));
+    });
 }
 
 pub fn move_player(
@@ -173,6 +191,20 @@ pub fn animate_player(
             AnimationState::WalkingBack => !player.facing_left,
             _                           => false,
         };
+    }
+}
+
+pub fn update_weapon_positions(
+    mut weapon_query: Query<(&mut Transform, &ChildOf), With<Weapon>>,
+    player_query: Query<&Player>,
+    enemy_query: Query<&Enemy>,
+) {
+    for (mut transform, parent) in &mut weapon_query {
+        if let Ok(player) = player_query.get(parent.0) {
+            transform.translation.x = if player.facing_left { -15.0 } else { 15.0 };
+        } else if let Ok(enemy) = enemy_query.get(parent.0) {
+            transform.translation.x = if enemy.facing_left { -15.0 } else { 15.0 };
+        }
     }
 }
 
