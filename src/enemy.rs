@@ -83,16 +83,16 @@ pub fn spawn_enemies(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     spawner.cooldown.tick(time.delta());
-
+ 
     if !spawner.wave_active || spawner.count >= spawner.max_enemies {
         return;
     }
-
+ 
     if spawner.cooldown.just_finished() {
         let Ok(player_transform) = player_query.single() else {
             return;
         };
-
+ 
         let elapsed = time.elapsed_secs();
         let base_angle =
             spawner.count as f32 * std::f32::consts::TAU / spawner.max_enemies as f32;
@@ -103,16 +103,16 @@ pub fn spawn_enemies(
             spawn_angle.sin() * spawn_radius,
             1.0,
         );
-
+ 
         let too_close_to_player =
             spawn_pos.distance(player_transform.translation) < MIN_SPAWN_DISTANCE_FROM_PLAYER;
         let too_close_to_enemy = enemy_query
             .iter()
             .any(|t| t.translation.distance(spawn_pos) < ENEMY_SEPARATION_DISTANCE);
-
+ 
         if is_walkable_position(spawn_pos) && !too_close_to_player && !too_close_to_enemy {
             let texture = asset_server.load("enemy_sprite.png");
-
+ 
             let layout = TextureAtlasLayout::from_grid(
                 UVec2::new(ENEMY_FRAME_W, ENEMY_FRAME_H),
                 ENEMY_FRAME_COUNT,
@@ -121,7 +121,7 @@ pub fn spawn_enemies(
                 None,
             );
             let layout_handle = texture_atlas_layouts.add(layout);
-
+ 
             commands.spawn((
                 Sprite {
                     image: texture,
@@ -147,15 +147,16 @@ pub fn spawn_enemies(
                 },
                 GameEntity,
             ));
-
+ 
             spawner.count += 1;
-
+ 
             if spawner.count >= spawner.max_enemies {
                 spawner.wave_active = false;
             }
         }
     }
 }
+
 
 // ── Movement system ───────────────────────────────────────────────────────────
 pub fn move_enemies_toward_player(
