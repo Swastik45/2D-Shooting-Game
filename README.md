@@ -1,4 +1,4 @@
-# My Bevy Game
+# 2D Shooter Game
 
 A 2D top-down action game built with the [Bevy](https://bevyengine.org/) game engine in Rust.
 
