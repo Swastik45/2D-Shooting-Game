@@ -3,6 +3,7 @@ use crate::enemy::Enemy;
 use crate::world::{TILE_SIZE, MAP_W, MAP_H, LAYER_PLAYER, is_walkable_position};
 use crate::combat::Health;
 use crate::game_ui::GameEntity;
+use crate::weapon::spawn_weapon_sprite;
 
 const FRAME_W: u32 = 384;
 const FRAME_H: u32 = 1024;
@@ -48,9 +49,6 @@ pub struct Gun {
     pub cooldown: Timer,
 }
 
-#[derive(Component)]
-pub struct Weapon;
-
 pub fn spawn_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -66,8 +64,6 @@ pub fn spawn_player(
         None,
     );
     let layout_handle = texture_atlas_layouts.add(layout);
-
-    let weapon_texture = asset_server.load("weapon_sprite.png");
 
     let player_entity = commands.spawn((
         Sprite {
@@ -94,18 +90,8 @@ pub fn spawn_player(
         GameEntity,
     )).id();
 
-    // Spawn weapon as child
-    commands.entity(player_entity).with_children(|parent| {
-        parent.spawn((
-            Sprite {
-                image: weapon_texture,
-                custom_size: Some(Vec2::new(20.0, 10.0)), // Adjust size
-                ..default()
-            },
-            Transform::from_xyz(15.0, 0.0, 0.1), // Offset from player
-            Weapon,
-        ));
-    });
+    // Gun is a plain coloured rectangle child — no asset needed
+    spawn_weapon_sprite(&mut commands, player_entity);
 }
 
 pub fn move_player(
@@ -194,20 +180,6 @@ pub fn animate_player(
     }
 }
 
-pub fn update_weapon_positions(
-    mut weapon_query: Query<(&mut Transform, &ChildOf), With<Weapon>>,
-    player_query: Query<&Player>,
-    enemy_query: Query<&Enemy>,
-) {
-    for (mut transform, parent) in &mut weapon_query {
-        if let Ok(player) = player_query.get(parent.0) {
-            transform.translation.x = if player.facing_left { -15.0 } else { 15.0 };
-        } else if let Ok(enemy) = enemy_query.get(parent.0) {
-            transform.translation.x = if enemy.facing_left { -15.0 } else { 15.0 };
-        }
-    }
-}
-
 fn first_frame(state: AnimationState) -> usize {
     match state {
         AnimationState::Idle         => FRAME_FRONT_IDLE,
@@ -224,5 +196,5 @@ fn is_position_blocked_by_enemy(
     let min_distance = PLAYER_COLLISION_RADIUS + ENEMY_COLLISION_RADIUS;
     enemy_query
         .iter()
-        .any(|enemy_transform| enemy_transform.translation.distance(position) < min_distance)
+        .any(|t| t.translation.distance(position) < min_distance)
 }

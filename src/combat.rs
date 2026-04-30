@@ -3,11 +3,16 @@ use crate::weapon::Bullet;
 use crate::enemy::{Enemy, EnemyBullet};
 use crate::player::Player;
 
-
 const BULLET_DAMAGE: f32 = 10.0;
 
+/// Collision radii — tuned to match sprite sizes.
+/// Player sprite: TILE_SIZE * 1.5 wide → half = TILE_SIZE * 0.75
+/// Enemy sprite:  TILE_SIZE * 1.2 wide → half = TILE_SIZE * 0.6
+const PLAYER_BULLET_HIT_RADIUS: f32 = 22.0;   // enemy hit box
+const ENEMY_BULLET_HIT_RADIUS:  f32 = 25.0;   // player hit box
+
+// ── Health component (used by player) ────────────────────────────────────────
 #[derive(Component)]
-#[allow(dead_code)]
 pub struct Health {
     pub current: f32,
     pub max: f32,
@@ -19,24 +24,28 @@ impl Health {
     }
 }
 
+// ── Player bullets hitting enemies ───────────────────────────────────────────
 pub fn check_bullet_collisions(
     mut commands: Commands,
-    bullets: Query<(Entity, &Transform), (With<Bullet>, Without<crate::enemy::EnemyBullet>)>,
+    bullets: Query<(Entity, &Transform), (With<Bullet>, Without<EnemyBullet>)>,
     mut enemies: Query<(&Transform, &mut Enemy), Without<Bullet>>,
 ) {
     for (bullet_entity, bullet_transform) in &bullets {
         for (enemy_transform, mut enemy) in &mut enemies {
-            let distance = bullet_transform.translation.distance(enemy_transform.translation);
+            let distance = bullet_transform
+                .translation
+                .distance(enemy_transform.translation);
 
-            if distance < 20.0 {
+            if distance < PLAYER_BULLET_HIT_RADIUS {
                 enemy.health -= BULLET_DAMAGE;
                 commands.entity(bullet_entity).despawn();
-                break; // important
+                break; // one bullet hits one enemy
             }
         }
     }
 }
 
+// ── Enemy bullets hitting the player ─────────────────────────────────────────
 pub fn check_enemy_bullet_collisions(
     mut commands: Commands,
     enemy_bullets: Query<(Entity, &Transform), With<EnemyBullet>>,
@@ -47,15 +56,18 @@ pub fn check_enemy_bullet_collisions(
     };
 
     for (bullet_entity, bullet_transform) in &enemy_bullets {
-        let distance = bullet_transform.translation.distance(player_transform.translation);
-        if distance < 25.0 {
-            // Hit player!
+        let distance = bullet_transform
+            .translation
+            .distance(player_transform.translation);
+
+        if distance < ENEMY_BULLET_HIT_RADIUS {
             health.current -= BULLET_DAMAGE;
             commands.entity(bullet_entity).despawn();
         }
     }
 }
 
+// ── Despawn dead enemies, update score & spawner ─────────────────────────────
 pub fn remove_dead_enemies(
     mut commands: Commands,
     query: Query<(Entity, &Enemy), Changed<Enemy>>,
@@ -65,17 +77,18 @@ pub fn remove_dead_enemies(
     for (entity, enemy) in &query {
         if enemy.health <= 0.0 {
             commands.entity(entity).despawn();
-            score.current += 1;
 
+            // Update score
+            score.current += 1;
             if score.current > score.high_score {
                 score.high_score = score.current;
                 crate::game_state::save_high_score(score.high_score);
             }
 
+            // Decrement spawner count and reactivate wave if all cleared
             if spawner.count > 0 {
                 spawner.count -= 1;
             }
-
             if spawner.count == 0 {
                 spawner.wave_active = true;
                 spawner.cooldown.reset();

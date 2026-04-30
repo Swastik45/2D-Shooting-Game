@@ -3,11 +3,16 @@ use crate::player::{AnimationState, Gun, Player};
 use crate::world::{is_solid_tile, LAYER_PLAYER, world_tile_at_position};
 
 const BULLET_SPEED: f32 = 420.0;
-const BULLET_SIZE: Vec2 = Vec2::new(10.0, 4.0); // elongated — looks like a bullet
+const BULLET_SIZE: Vec2 = Vec2::new(10.0, 4.0);
 const BULLET_LIFETIME: f32 = 1.2;
 const MUZZLE_FLASH_SIZE: f32 = 14.0;
 const MUZZLE_FLASH_DURATION: f32 = 0.08;
 const MUZZLE_OFFSET: f32 = 20.0;
+
+// Gun shape rendered as a plain coloured rectangle — no image needed.
+// Barrel points RIGHT at 0°. flip_x / rotation handle all other directions.
+const GUN_SIZE: Vec2 = Vec2::new(14.0, 5.0);
+const GUN_COLOR: Color = Color::srgb(0.4, 0.4, 0.45);
 
 #[derive(Component)]
 pub struct Bullet {
@@ -18,6 +23,68 @@ pub struct Bullet {
 #[derive(Component)]
 pub struct MuzzleFlash {
     timer: Timer,
+}
+
+/// Marks the small gun rectangle that is a child of the player entity.
+#[derive(Component)]
+pub struct WeaponSprite;
+
+/// Spawns a gun rectangle and parents it to `owner`.
+/// No image file required — just a coloured rect.
+pub fn spawn_weapon_sprite(commands: &mut Commands, owner: Entity) {
+    let gun = commands.spawn((
+        Sprite {
+            color: GUN_COLOR,
+            custom_size: Some(GUN_SIZE),
+            ..default()
+        },
+        Transform::from_xyz(10.0, -8.0, 0.1),
+        WeaponSprite,
+    )).id();
+    commands.entity(owner).add_child(gun);
+}
+
+/// Repositions and rotates the gun child every frame to match the
+/// player's facing direction and animation state.
+/// This replaces `player::update_weapon_positions` entirely.
+pub fn update_weapon_sprite_transform(
+    player_query: Query<(&Player, &Children)>,
+    mut gun_query: Query<(&mut Transform, &mut Sprite), With<WeaponSprite>>,
+) {
+    for (player, children) in &player_query {
+        let facing_left = player.facing_left;
+
+        // Local offset and rotation per animation state.
+        // The gun sprite barrel points RIGHT, so:
+        //   0°  → right,  180° → left,  90° → up,  270° → down
+        let (local_x, local_y, angle_deg) = match player.animation_state {
+            AnimationState::Idle | AnimationState::WalkingSide => {
+                let x = if facing_left { -10.0 } else { 10.0 };
+                let angle = if facing_left { 180.0_f32 } else { 0.0_f32 };
+                (x, -8.0_f32, angle)
+            }
+            AnimationState::WalkingFront => {
+                // Gun hangs slightly in front and below centre, barrel points down
+                let x = if facing_left { -6.0 } else { 6.0 };
+                (x, -14.0_f32, 270.0_f32)
+            }
+            AnimationState::WalkingBack => {
+                // Gun raised, barrel points up
+                let x = if facing_left { -6.0 } else { 6.0 };
+                (x, -4.0_f32, 90.0_f32)
+            }
+        };
+
+        for child in children.iter() {
+            if let Ok((mut transform, mut sprite)) = gun_query.get_mut(child) {
+                transform.translation.x = local_x;
+                transform.translation.y = local_y;
+                transform.rotation = Quat::from_rotation_z(angle_deg.to_radians());
+                // No flip needed — rotation handles all four directions above
+                sprite.flip_x = false;
+            }
+        }
+    }
 }
 
 pub fn fire_gun(
@@ -37,13 +104,12 @@ pub fn fire_gun(
             gun.cooldown.reset();
 
             let direction = player_facing_direction(player);
-            let angle = direction.y.atan2(direction.x); // rotation matching travel dir
+            let angle = direction.y.atan2(direction.x);
             let spawn_pos = transform.translation + direction * MUZZLE_OFFSET;
 
-            // Bullet — rotated rectangle so it looks like a projectile
             commands.spawn((
                 Sprite {
-                    color: Color::srgb(1.0, 0.95, 0.4),
+                    color: Color::srgb(1.0, 0.95, 0.4), // yellow
                     custom_size: Some(BULLET_SIZE),
                     ..default()
                 },
@@ -58,7 +124,6 @@ pub fn fire_gun(
                 },
             ));
 
-            // Muzzle flash — brief bright burst at barrel tip
             commands.spawn((
                 Sprite {
                     color: Color::srgba(1.0, 0.6, 0.1, 0.9),
@@ -99,20 +164,16 @@ pub fn update_muzzle_flashes(
 ) {
     for (entity, mut sprite, mut flash) in &mut query {
         flash.timer.tick(time.delta());
-
-        // Fade out the flash over its lifetime
-        let progress = flash.timer.fraction(); // 0.0 → 1.0
-        sprite.color.set_alpha(1.0 - progress);
-
+        sprite.color.set_alpha(1.0 - flash.timer.fraction());
         if flash.timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }
 }
 
-fn player_facing_direction(player: &Player) -> Vec3 {
+pub fn player_facing_direction(player: &Player) -> Vec3 {
     match player.animation_state {
-        AnimationState::WalkingBack => Vec3::Y,
+        AnimationState::WalkingBack  => Vec3::Y,
         AnimationState::WalkingFront => Vec3::NEG_Y,
         AnimationState::WalkingSide | AnimationState::Idle => {
             if player.facing_left { Vec3::NEG_X } else { Vec3::X }
